@@ -165,24 +165,29 @@ module Prawn
       end
 
       def normalize_encoding(text)
-        begin
-          text.encode(::Encoding::UTF_8)
-        rescue => e
-          puts e
-          raise Prawn::Errors::IncompatibleStringEncoding, "Encoding " \
-            "#{text.encoding} can not be transparently converted to UTF-8. " \
-            "Please ensure the encoding of the string you are attempting " \
+        if text.respond_to?(:encode)
+          # if we're running under a M17n aware VM, ensure the string provided is
+          # UTF-8 (by converting it if necessary)
+          begin
+            text.encode("UTF-8")
+          rescue
+            raise Prawn::Errors::IncompatibleStringEncoding, "Encoding " +
+            "#{text.encoding} can not be transparently converted to UTF-8. " +
+            "Please ensure the encoding of the string you are attempting " +
             "to use is set correctly"
+          end
+        else
+          # on a non M17N aware VM, use unpack as a hackish way to verify the
+          # string is valid utf-8. I thought it was better than loading iconv
+          # though.
+          begin
+            text.unpack("U*")
+            return text.dup
+          rescue
+            raise Prawn::Errors::IncompatibleStringEncoding, "The string you " +
+              "are attempting to render is not encoded in valid UTF-8."
+          end
         end
-      end
-
-      def to_utf8(text)
-        text.encode("UTF-8")
-      end
-
-      def glyph_present?(char)
-        code = char.codepoints.first
-        cmap[code] > 0
       end
 
       # Returns the number of characters in +str+ (a UTF-8-encoded string).
